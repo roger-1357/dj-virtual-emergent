@@ -104,6 +104,23 @@ class GameEngine {
     }
   }
   
+  loadSavedProgress(progressData) {
+    this.score = progressData.score || 0;
+    this.lives = progressData.lives_remaining || 3;
+    this.level = progressData.current_level || 1;
+    this.coins = progressData.coins || 0;
+    
+    // Load the appropriate level
+    this.loadLevel(this.level);
+    
+    // Reset player position
+    this.player.x = 100;
+    this.player.y = 400;
+    
+    // Update stats
+    this.updateStats();
+  }
+  
   restart() {
     this.score = 0;
     this.lives = 3;
