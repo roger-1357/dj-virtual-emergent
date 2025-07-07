@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,9 +6,10 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
+import hashlib
 
 
 ROOT_DIR = Path(__file__).parent
@@ -27,30 +28,98 @@ api_router = APIRouter(prefix="/api")
 
 
 # Define Models
-class StatusCheck(BaseModel):
+class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    username: str
+    email: Optional[str] = None
+    password_hash: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    high_score: int = 0
+    total_coins: int = 0
+    levels_completed: int = 0
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+class UserCreate(BaseModel):
+    username: str
+    email: Optional[str] = None
+    password: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: Optional[str] = None
+    high_score: int
+    total_coins: int
+    levels_completed: int
+    created_at: datetime
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+class Score(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    username: str
+    score: int
+    level_reached: int
+    coins_collected: int
+    game_duration: int  # in seconds
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ScoreCreate(BaseModel):
+    user_id: str
+    username: str
+    score: int
+    level_reached: int
+    coins_collected: int
+    game_duration: int
+
+class GameProgress(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    current_level: int
+    lives_remaining: int
+    score: int
+    coins: int
+    power_ups: List[str] = []
+    last_checkpoint: dict = {}
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class GameProgressCreate(BaseModel):
+    user_id: str
+    current_level: int
+    lives_remaining: int
+    score: int
+    coins: int
+    power_ups: List[str] = []
+    last_checkpoint: dict = {}
+
+class GameSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    session_token: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    is_active: bool = True
+
+# Helper functions
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return hash_password(password) == hashed
+
+async def get_user_by_id(user_id: str) -> Optional[User]:
+    user_data = await db.users.find_one({"id": user_id})
+    if user_data:
+        return User(**user_data)
+    return None
+
+async def get_user_by_username(username: str) -> Optional[User]:
+    user_data = await db.users.find_one({"username": username})
+    if user_data:
+        return User(**user_data)
+    return None
 
 # Include the router in the main app
 app.include_router(api_router)
