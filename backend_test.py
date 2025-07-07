@@ -6,14 +6,8 @@ from datetime import datetime
 import uuid
 import sys
 
-# Get the backend URL from the frontend .env file
-with open('/app/frontend/.env', 'r') as f:
-    for line in f:
-        if line.startswith('REACT_APP_BACKEND_URL='):
-            BACKEND_URL = line.strip().split('=')[1].strip('"\'')
-            break
-
-API_URL = f"{BACKEND_URL}/api"
+# Use the internal URL for testing
+API_URL = "http://localhost:8001/api"
 print(f"Testing API at: {API_URL}")
 
 # Test data
